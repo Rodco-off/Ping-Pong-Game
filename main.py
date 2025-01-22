@@ -106,54 +106,107 @@ class StartWindow:
             clock.tick(FPS)
 
 
-class GamePole:
+class Border(pygame.sprite.Sprite):
 
-    '''Класс для описание игрового поля'''
+    '''Класс для описания стенок поля'''
 
-    IMAGE_FON = load_image('fon.png')
+    def __init__(self, x1: int, y1: int, x2: int, y2: int, *groups) -> None:
 
-    def __init__(self, coords: tuple[int, int], height: int, width: int) -> None:
+        super().__init__(groups)
+        self.color = pygame.color.Color('white')
 
+        if x1 == x2:
+
+            self.add(GamePole.vertical_borders_col)
+            self.image = pygame.Surface((1, y2 - y1))
+            self.rect = pygame.Rect(x1, y1, 1, y2 - y1)
+
+        else:
+
+            self.add(GamePole.horizontal_borders_col)
+            self.image = pygame.Surface((x2 - x1, 1))
+            self.rect = pygame.Rect(x1, y1, x2 - x1, 1)
+
+        self.image.fill(self.color)
+
+
+class Frame(pygame.sprite.Sprite):
+
+    '''Класс для описания рамки поля'''
+
+    def __init__(self, coords: tuple[int, int], height: int, width: int,  *groups):
+
+        super().__init__(groups)
         self.coords = coords
-        self.height_frame = height
-        self.width_frame = width
-        self.image_fon = self.IMAGE_FON
-        self.color_frame = pygame.color.Color('white')
+        self.height = height
+        self.width = width
+        self.color = pygame.color.Color('white')
+        self.borders = [Border(self.coords[0], self.coords[1], self.coords[0] + self.height, self.coords[1]),
+                        Border(self.coords[0], self.coords[1] + self.width, self.coords[0] + self.height, self.coords[1] + self.width),
+                        Border(self.coords[0], self.coords[1], self.coords[0], self.coords[1] + self.width),
+                        Border(self.coords[0] + self.height, self.coords[1], self.coords[0] + self.height, self.coords[1] + self.width)]
 
-    def update_frame(self) -> None:
+    def update_borders(self) -> None:
 
-        screen.blit(self.image_fon, (0, 0))
-        pygame.draw.rect(screen, self.color_frame,
-                         pygame.Rect(*self.coords, self.height_frame, self.width_frame), 1)
+        for border in self.borders:
 
-    def update_player(self) -> None:
-
-        pygame.draw.rect()
+            screen.blit(border.image, border.rect)
 
 
-class Player:
+class Player(pygame.sprite.Sprite):
 
     '''Класс для описание модельки игрока'''
 
-    def __init__(self, start_coords: tuple[int, int], speed: int) -> None:
+    def __init__(self, coords: tuple[int, int], speed: int = 10, height: int = 100, width: int = 20, *groups) -> None:
 
-        self.coords = start_coords
+        super().__init__(groups)
+
+        self.coords = coords
         self.speed = speed
+        self.height = height
+        self.width = width
+        self.color = pygame.color.Color('white')
+        self.image = pygame.Surface((self.height, self.width))
+        self.image.fill(self.color)
+        self.rect = pygame.Rect(*self.coords, height, self.width)
+        self.add(GamePole.player_col)
 
     def set_coords(self, coords: tuple[int, int]) -> None:
 
-        self.coords = coords
+        if pygame.sprite.spritecollideany(self, game_pole.vertical_borders_col):
+
+            if self.rect.x > self.coords[0]:
+
+                self.rect = self.rect.move(-5, 0)
+
+            else:
+
+                self.rect = self.rect.move(5, 0)
+
+            return None
+
+        self.rect = self.rect.move(coords)
 
     def get_coords(self) -> tuple[int, int]:
 
-        return self.coords
+        return self.rect.x, self.rect.y
+
+    def get_speed(self) -> int:
+
+        return self.speed
+
+    def update_player(self) -> None:
+
+        screen.blit(self.image, (self.rect.x, self.rect.y))
 
 
-class Wall:
+class Wall(pygame.sprite.Sprite):
 
     '''Общий класс для описание объектов находящихся на игровом поле'''
 
-    def __init__(self, coords: tuple[int, int]) -> None:
+    def __init__(self, coords: tuple[int, int], *groups) -> None:
+
+        super().__init__(groups)
 
         self.coords = coords
         self.is_life = True
@@ -163,38 +216,160 @@ class InvulWall(Wall):
 
     '''Класс для описание неразрушаймых стен'''
 
-    def __init__(self, coords: tuple[int, int]) -> None:
+    def __init__(self, coords: tuple[int, int], *groups) -> None:
 
-        super().__init__(coords)
+        super().__init__(coords, groups)
 
 
 class ScoreWall(Wall):
 
     '''Класс для описание стен, которые будут давать очки'''
 
-    def __init__(self, coords: tuple[int, int], score: int) -> None:
+    def __init__(self, coords: tuple[int, int], score: int, *groups) -> None:
 
-        super().__init__(coords)
+        super().__init__(coords, groups)
+        self.font = pygame.font.Font(None, 30)
         self.score = score
 
 
-class Ball:
+class Ball(pygame.sprite.Sprite):
 
     '''Класс для описание мяча'''
 
-    def __init__(self, start_coords: tuple[int, int], speed: int) -> None:
+    def __init__(self, start_coords: tuple[int, int], speed: int = 5, radius: int = 8, *groups) -> None:
 
-        self.start_coords = start_coords
+        super().__init__(groups)
+
         self.speed = speed
+        self.speed_x = True
+        self.speed_y = True
+
+        self.image = pygame.Surface((radius, radius))
+        self.color = pygame.color.Color('white')
+        pygame.draw.circle(self.image, self.color, (radius // 2, radius // 2), radius // 2)
+        self.rect = self.image.get_rect()
+        self.rect.x, self.rect.y = start_coords
+
+        self.add(GamePole.ball_col)
+
+    def get_coords(self) -> tuple[int, int]:
+
+        return (self.rect.x, self.rect.y)
+
+    def set_coords(self, coords: tuple[int, int]) -> None:
+
+        self.rect.x, self.rect.y = coords
+
+    def set_speed_x(self) -> None:
+
+        self.speed_x = not self.speed_x
+
+    def set_speed_y(self) -> None:
+
+        self.speed_y = not self.speed_y
+
+    def update_ball(self) -> None:
+
+        screen.blit(self.image, (self.rect.x, self.rect.y))
+
+        if pygame.sprite.spritecollideany(self, game_pole.horizontal_borders_col):
+
+            self.set_speed_y()
+
+        elif pygame.sprite.spritecollideany(self, game_pole.vertical_borders_col):
+
+            self.set_speed_x()
+
+        elif pygame.sprite.spritecollideany(self, game_pole.player_col):
+
+            self.set_speed_y()
 
 
 class Score:
 
     '''Класс для опсания игрового счёта'''
 
-    def __init__(self):
+    def __init__(self, coords: tuple[int, int]):
 
         self.score = 0
+        self.coords = coords
+        self.font = pygame.font.Font(None, 30)
+        self.color_font = pygame.color.Color('white')
+        self.text = 'SCORE: '
+
+    def update_score(self) -> None:
+
+        x, y = self.coords
+
+        string_rendered = self.font.render(self.text + str(self.score), 1, self.color_font)
+        intro_rect = string_rendered.get_rect()
+        intro_rect.x = x
+        intro_rect.top = y
+        screen.blit(string_rendered, intro_rect)
+
+
+class GamePole(pygame.sprite.Sprite):
+
+    '''Класс для описание игрового поля'''
+
+    IMAGE_FON = load_image('fon.png')
+    horizontal_borders_col = pygame.sprite.Group()
+    vertical_borders_col = pygame.sprite.Group()
+    ball_col = pygame.sprite.Group()
+    player_col = pygame.sprite.Group()
+
+    def __init__(self, frame: Frame, score: Score, player: Player, ball: Ball, *groups) -> None:
+
+        self.image_fon = self.IMAGE_FON
+        self.frame = frame
+        self.score = score
+        self.player = player
+        self.ball = ball
+        super().__init__(groups)
+
+    def update_frame(self) -> None:
+
+        self.frame.update_borders()
+
+    def update_player(self) -> None:
+
+        pygame.draw.rect()
+
+    def update_all(self) -> None:
+
+        screen.fill((0, 0, 0))
+        screen.blit(self.image_fon, (0, 0))
+
+        self.update_frame()
+        self.score.update_score()
+        self.player.update_player()
+        self.move_ball()
+        self.ball.update_ball()
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    def move_ball(self) -> None:
+
+        x, y = 0, 0
+
+        if self.ball.speed_x:
+
+            x += self.ball.speed
+
+        else:
+
+            x -= self.ball.speed
+
+        if self.ball.speed_y:
+
+            y += self.ball.speed
+
+        else:
+
+            y -= self.ball.speed
+
+        self.ball.rect = self.ball.rect.move(x, y)
 
 
 if __name__ == '__main__':
@@ -205,9 +380,51 @@ if __name__ == '__main__':
 
         running = True
 
+        screen.fill((0, 0, 0))
+
+        frame = Frame((50, 50), 800, 924)
+        player = Player((400, 800))
+        ball = Ball((450, 600))
+        score = Score((20, 20))
+
+        game_pole = GamePole(frame, score, player, ball)
+
+        game_pole.update_all()
+
         while running:
 
-            screen.fill((0, 0, 0))
-            game_pole = GamePole((50, 50), 800, 924)
-            game_pole.update_frame()
-            pygame.display.flip()
+            for event in pygame.event.get():
+
+                if event.type == pygame.QUIT:
+
+                    running = False
+
+                elif event.type == pygame.KEYDOWN:
+
+                    while pygame.key.get_pressed()[pygame.K_RIGHT] or pygame.key.get_pressed()[pygame.K_LEFT]:
+
+                        if pygame.key.get_pressed()[pygame.K_RIGHT] and pygame.key.get_pressed()[pygame.K_LEFT]:
+
+                            pygame.event.pump()
+                            break
+
+                        x, y = 0, 0
+                        speed = game_pole.player.get_speed()
+
+                        if event.key == pygame.K_RIGHT:
+
+                            x += speed
+
+                        else:
+
+                            x -= speed
+
+                        player.set_coords((x, y))
+                        screen.fill((0, 0, 0))
+                        game_pole.update_all()
+                        pygame.event.pump()
+
+            game_pole.update_all()
+
+        pygame.quit()
+        exit()
