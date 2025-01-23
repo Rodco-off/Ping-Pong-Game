@@ -5,7 +5,7 @@ from random import choice
 from os.path import join, isfile
 
 
-SIZE = HEIGHT, WIDTH = (900, 1024)
+SIZE = HEIGHT, WIDTH = (900, 1000)
 FPS = 60
 clock = pygame.time.Clock()
 screen = pygame.display.set_mode(SIZE)
@@ -359,6 +359,7 @@ class GamePole(pygame.sprite.Sprite):
     player_col = pygame.sprite.Group()
     invulwall_col = pygame.sprite.Group()
     wall_col = pygame.sprite.Group()
+    LEVELS = ('yandex.txt', 'love.txt')
 
     def __init__(self, frame: Frame, score: Score, player: Player, ball: Ball, *groups) -> None:
 
@@ -429,10 +430,18 @@ class GamePole(pygame.sprite.Sprite):
 
         self.ball.rect = self.ball.rect.move(x, y)
 
+    def create_level(self) -> None:
+
+        level = Level(choice(self.LEVELS))
+        self.walls = level.parse_level()
+
 
 class Level:
 
     '''Класс для описания парсера уровня'''
+
+    COLORS = ('R', 'B', 'G', 'Y')
+    SCORE = (50, 100, 200)
 
     def __init__(self, filename: str) -> None:
 
@@ -457,9 +466,63 @@ class Level:
 
                 self.structure.append(list_simbol)
 
-    def parse_level(self, structur: list[list[str]]) -> None:
+    def parse_level(self) -> list[list[ScoreWall | InvulWall]]:
 
-        ...
+        coord_y = 100
+        self.walls = []
+
+        for line in self.structure:
+
+            coord_x = 100
+
+            for simbol in line:
+
+                if simbol in self.COLORS:
+
+                    color = self.get_color(simbol)
+                    wall = ScoreWall((coord_x, coord_y),
+                                     choice(self.SCORE),
+                                     color)
+
+                elif simbol == '#':
+
+                    wall = InvulWall((coord_x, coord_y), 'grey')
+
+                elif simbol == ' ' or simbol == '\n':
+
+                    coord_x += 50
+                    continue
+
+                else:
+
+                    print('Не правильно написан уровень')
+                    exit()
+
+                self.walls.append(wall)
+                coord_x += 50
+
+            coord_y += 40
+
+        return self.walls
+
+    @staticmethod
+    def get_color(string: str) -> str:
+
+        if string == 'R':
+
+            return 'red'
+
+        elif string == 'B':
+
+            return 'blue'
+
+        elif string == 'G':
+
+            return 'green'
+
+        elif string == 'Y':
+
+            return 'yellow'
 
 
 if __name__ == '__main__':
@@ -472,22 +535,16 @@ if __name__ == '__main__':
 
         screen.fill((0, 0, 0))
 
-        frame = Frame((50, 50), 800, 924)
+        frame = Frame((50, 50), 800, 900)
         player = Player((400, 800))
         ball = Ball((450, 600))
         score = Score((20, 20))
         game_pole = GamePole(frame, score, player, ball)
 
         x_coord_wall = 100
-        y_coord_wall = 200
+        y_coord_wall = 100
 
-        for y_coord in range(y_coord_wall, 650, 50):
-
-            for x_coord in range(x_coord_wall, 800, 50):
-
-                wall = ScoreWall((x_coord, y_coord), choice((200, 100, 50)), choice(('red', 'yellow', 'green')))
-                game_pole.add_wall(wall)
-
+        game_pole.create_level()
         game_pole.update_all()
 
         while running:
