@@ -410,6 +410,8 @@ class GamePole(pygame.sprite.Sprite):
 
     def move_ball(self) -> None:
 
+        '''Передвижение мяча'''
+
         x, y = 0, 0
 
         if self.ball.speed_x:
