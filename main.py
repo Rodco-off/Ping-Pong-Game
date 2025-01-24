@@ -352,7 +352,7 @@ class Score:
 
 class GamePole(pygame.sprite.Sprite):
 
-    '''Класс для описание игрового поля'''
+    '''Класс для описание игрового поля и процессов в нём'''
 
     IMAGE_FON = load_image('fon.png')
     horizontal_borders_col = pygame.sprite.Group()
