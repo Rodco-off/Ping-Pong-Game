@@ -2,10 +2,12 @@ import pygame
 
 from sys import exit
 from random import choice
+from sqlite3 import connect
 from os.path import join, isfile
 
 
 SIZE = HEIGHT, WIDTH = (900, 1000)
+DATA_BASE = 'static.sqlite'
 FPS = 60
 clock = pygame.time.Clock()
 screen = pygame.display.set_mode(SIZE)
@@ -61,7 +63,7 @@ class StartWindow:
                   '     2. Для этого тебе нужно шариком попадать в разрушаемые стенки',
                   '         P.S. в игре также есть неразрушаемые стенки',
                   '',
-                  '                     Нажмите на любую кнопку, чтобы начать игру']
+                  '                     Нажмите на любую кнопку - чтобы начать игру']
 
     def __init__(self):
 
@@ -171,20 +173,20 @@ class Player(pygame.sprite.Sprite):
 
         self.image = pygame.Surface((self.height, self.width))
         self.image.fill(self.color)
-        self.rect = pygame.Rect(*self.coords, height, self.width)
+        self.rect = pygame.Rect(*self.coords, self.height, self.width)
         self.add(GamePole.player_col)
 
     def set_coords(self, coords: tuple[int, int]) -> None:
 
         if pygame.sprite.spritecollideany(self, game_pole.vertical_borders_col):
 
-            if self.rect.x > self.coords[0]:
+            if self.rect.x > self.coords[0] + self.height:
 
-                self.rect = self.rect.move(-5, 0)
+                self.rect = self.rect.move(-15, 0)
 
             else:
 
-                self.rect = self.rect.move(5, 0)
+                self.rect = self.rect.move(15, 0)
 
             return None
 
@@ -360,19 +362,39 @@ class GamePole(pygame.sprite.Sprite):
     invulwall_col = pygame.sprite.Group()
     wall_col = pygame.sprite.Group()
     LEVELS = ('yandex.txt', 'love.txt')
+    INTRO_TEXT = ['LEVEL ']
 
     def __init__(self, frame: Frame, score: Score, player: Player, ball: Ball, *groups) -> None:
 
         self.image_fon = self.IMAGE_FON
+
         self.frame = frame
         self.score = score
         self.player = player
         self.ball = ball
+
+        self.count_level = 1
+        self.color_font = pygame.color.Color('white')
         self.walls = []
+
+        self.start_pos_ball = (450, 800)
+        self.start_pos_player = (400, 900)
         super().__init__(groups)
 
     def update_frame(self) -> None:
 
+        '''Обновляет весь фон игрового поля'''
+
+        fon = pygame.transform.scale(self.image_fon, SIZE)
+        intro_text = self.INTRO_TEXT[0] + str(self.count_level)
+        screen.blit(fon, (0, 0))
+        font = pygame.font.Font(None, 30)
+
+        string_rendered = font.render(intro_text, 1, self.color_font)
+        intro_rect = string_rendered.get_rect()
+        intro_rect.top = 25
+        intro_rect.x = 400
+        screen.blit(string_rendered, intro_rect)
         self.frame.update_borders()
 
     def update_walls(self) -> None:
@@ -436,6 +458,24 @@ class GamePole(pygame.sprite.Sprite):
 
         level = Level(choice(self.LEVELS))
         self.walls = level.parse_level()
+        self.ball.set_coords(self.start_pos_ball)
+
+    def check_win(self) -> bool:
+
+        '''Проверяет за разрушение всего разрушаемого'''
+
+        return True if len([wall for wall in self.walls if type(wall) is not InvulWall]) == 0 else False
+
+    def check_lose(self) -> bool:
+
+        '''Проверяет на выход мяча за нижную барьер'''
+
+        if pygame.sprite.spritecollideany(self.ball, GamePole.horizontal_borders_col)\
+           and self.ball.get_coords()[1] > self.start_pos_ball[1]:
+
+            return True
+
+        return False
 
 
 class Level:
@@ -469,6 +509,8 @@ class Level:
                 self.structure.append(list_simbol)
 
     def parse_level(self) -> list[list[ScoreWall | InvulWall]]:
+
+        '''Парсит структуру уровня'''
 
         coord_y = 100
         self.walls = []
@@ -527,6 +569,93 @@ class Level:
             return 'yellow'
 
 
+class EndWindow:
+
+    '''Класс для экрана окончания игры'''
+
+    IMAGE_START_WINDOW = load_image('fon.png')
+    INTRO_TEXT = ['                 К сожалению вы проиграли, вас счёт составляет: ',
+                  '         Данные вашего прохождения будут занесены в базу данных',
+                  '',
+                  '                         Чтобы выйти - нажмите на любую кнопку']
+
+    def __init__(self, score: Score) -> None:
+
+        self.image = self.IMAGE_START_WINDOW
+        self.intro_text = self.INTRO_TEXT
+        self.score = score.score
+        self.intro_text[0] += str(self.score)
+        self.color_font = pygame.Color('white')
+
+    def end_window(self) -> bool:
+
+        '''Установка экрана окончания'''
+
+        self.write_score_in_sqltable()
+
+        fon = pygame.transform.scale(self.image, SIZE)
+        screen.blit(fon, (0, 0))
+        font = pygame.font.Font(None, 30)
+        text_coord_y = 300
+
+        for line in self.intro_text:
+
+            string_rendered = font.render(line, 1, self.color_font)
+            intro_rect = string_rendered.get_rect()
+            text_coord_y += 30
+            intro_rect.top = text_coord_y
+            intro_rect.x = 75
+            text_coord_y += intro_rect.height
+            screen.blit(string_rendered, intro_rect)
+
+        running = True
+
+        while running:
+
+            for event in pygame.event.get():
+
+                if event.type == pygame.QUIT:
+
+                    terminate()
+                    running = False
+                    return False
+
+                elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+
+                    running = False
+                    return True
+
+            pygame.display.flip()
+
+    def write_score_in_sqltable(self) -> None:
+
+        '''Добавление рекорда в БД'''
+
+        with connect(DATA_BASE) as con:
+
+            cursor = con.cursor()
+            cursor.execute(f'''INSERT INTO Static (Score) VALUES ({self.score})''')
+
+
+def check_status_game() -> None:
+
+    global running
+
+    if game_pole.check_win():
+
+        game_pole.count_level += 1
+        game_pole.create_level()
+
+    elif game_pole.check_lose():
+
+        end_window = EndWindow(score)
+
+        if end_window.end_window():
+
+            running = False
+            terminate()
+
+
 if __name__ == '__main__':
 
     start_window = StartWindow()
@@ -535,11 +664,9 @@ if __name__ == '__main__':
 
         running = True
 
-        screen.fill((0, 0, 0))
-
         frame = Frame((50, 50), 800, 900)
         player = Player((400, 800))
-        ball = Ball((450, 600))
+        ball = Ball((450, 750))
         score = Score((20, 20))
         game_pole = GamePole(frame, score, player, ball)
 
@@ -578,10 +705,12 @@ if __name__ == '__main__':
                             x -= speed
 
                         player.set_coords((x, y))
-                        screen.fill((0, 0, 0))
                         game_pole.update_all()
                         pygame.event.pump()
 
+                        check_status_game()
+
+            check_status_game()
             game_pole.update_all()
 
         pygame.quit()
