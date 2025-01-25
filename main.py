@@ -16,7 +16,7 @@ pygame.init()
 
 def load_image(filename: str, colorkey: int | None = None) -> pygame.surface.Surface:
 
-    '''Функция для загрузки спрайтов'''
+    '''Функция для загрузки спрайтов '''
 
     fullname = join('data', filename)
 
