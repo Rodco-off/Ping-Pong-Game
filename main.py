@@ -145,10 +145,14 @@ class Frame(pygame.sprite.Sprite):
         self.width = width
 
         self.color = pygame.color.Color('white')
-        self.borders = [Border(self.coords[0], self.coords[1], self.coords[0] + self.height, self.coords[1]),
-                        Border(self.coords[0], self.coords[1] + self.width, self.coords[0] + self.height, self.coords[1] + self.width),
-                        Border(self.coords[0], self.coords[1], self.coords[0], self.coords[1] + self.width),
-                        Border(self.coords[0] + self.height, self.coords[1], self.coords[0] + self.height, self.coords[1] + self.width)]
+        self.borders = [Border(self.coords[0], self.coords[1],
+                               self.coords[0] + self.height, self.coords[1]),
+                        Border(self.coords[0], self.coords[1] + self.width,
+                               self.coords[0] + self.height, self.coords[1] + self.width),
+                        Border(self.coords[0], self.coords[1],
+                               self.coords[0], self.coords[1] + self.width),
+                        Border(self.coords[0] + self.height,
+                               self.coords[1], self.coords[0] + self.height, self.coords[1] + self.width)]
 
     def update_borders(self) -> None:
 
@@ -161,26 +165,33 @@ class Player(pygame.sprite.Sprite):
 
     '''Класс для описание модельки игрока'''
 
-    def __init__(self, coords: tuple[int, int], speed: int = 10, height: int = 100, width: int = 20, *groups) -> None:
+    HEIGHT = 100
+    WIDTH = 20
+    SPEED = 10
+
+    def __init__(self, coords: tuple[int, int], *groups) -> None:
 
         super().__init__(groups)
 
-        self.coords = coords
-        self.speed = speed
-        self.height = height
-        self.width = width
+        coords = coords
+        height = self.HEIGHT
+        width = self.WIDTH
+
+        self.speed = self.SPEED
         self.color = pygame.color.Color('white')
 
-        self.image = pygame.Surface((self.height, self.width))
+        self.image = pygame.Surface((height, width))
         self.image.fill(self.color)
-        self.rect = pygame.Rect(*self.coords, self.height, self.width)
+        self.rect = pygame.Rect(*coords, height, width)
         self.add(GamePole.player_col)
 
     def set_coords(self, coords: tuple[int, int]) -> None:
 
+        height = self.HEIGHT
+
         if pygame.sprite.spritecollideany(self, game_pole.vertical_borders_col):
 
-            if self.rect.x > self.coords[0] + self.height:
+            if self.rect.x > coords[0] + height:
 
                 self.rect = self.rect.move(-15, 0)
 
@@ -209,14 +220,18 @@ class Wall(pygame.sprite.Sprite):
 
     '''Общий класс для описание объектов находящихся на игровом поле'''
 
-    def __init__(self, coords: tuple[int, int], color: str | tuple[int, int, int], height: int = 40, width: int = 20, *groups) -> None:
+    HEIGHT = 40
+    WIDTH = 20
+
+    def __init__(self, coords: tuple[int, int], color: str | tuple[int, int, int], *groups) -> None:
 
         super().__init__(groups)
 
+        height = self.HEIGHT
+        width = self.WIDTH
+
         self.coords = coords
         self.color = color
-        self.height = height
-        self.width = width
         self.is_life = True
 
         self.image = pygame.Surface((height, width))
@@ -237,9 +252,9 @@ class InvulWall(Wall):
 
     '''Класс для описание неразрушаймых стен'''
 
-    def __init__(self, coords: tuple[int, int], color: str | tuple[int, int, int], height: int = 40, width: int = 20, *groups) -> None:
+    def __init__(self, coords: tuple[int, int], color: str | tuple[int, int, int], *groups) -> None:
 
-        super().__init__(coords, color, height, width, groups)
+        super().__init__(coords, color, groups)
         self.add(GamePole.invulwall_col)
 
 
@@ -247,9 +262,9 @@ class ScoreWall(Wall):
 
     '''Класс для описание стен, которые будут давать очки'''
 
-    def __init__(self, coords: tuple[int, int], score: int, color: str | tuple[int, int, int], height: int = 40, width: int = 20, *groups) -> None:
+    def __init__(self, coords: tuple[int, int], score: int, color: str | tuple[int, int, int], *groups) -> None:
 
-        super().__init__(coords, color, height, width, groups)
+        super().__init__(coords, color, groups)
         self.score = score
         self.add(GamePole.wall_col)
 
@@ -263,13 +278,17 @@ class Ball(pygame.sprite.Sprite):
 
     '''Класс для описание мяча'''
 
-    def __init__(self, start_coords: tuple[int, int], speed: int = 5, radius: int = 8, *groups) -> None:
+    SPEED = 5
+    RADIUS = 8
+
+    def __init__(self, start_coords: tuple[int, int], *groups) -> None:
 
         super().__init__(groups)
 
-        self.speed = speed
+        self.speed = self.SPEED
         self.speed_x = True
         self.speed_y = True
+        radius = self.RADIUS
 
         self.image = pygame.Surface((radius, radius))
         self.color = pygame.color.Color('white')
@@ -309,15 +328,34 @@ class Ball(pygame.sprite.Sprite):
 
         elif pygame.sprite.spritecollideany(self, GamePole.player_col):
 
-            self.set_speed_y()
+            if GamePole.START_POS_PLAYER[1] < self.get_coords()[1] < GamePole.START_POS_PLAYER[1] + Player.WIDTH:
 
-        elif pygame.sprite.spritecollideany(self, GamePole.invulwall_col):
+                self.set_speed_x()
 
-            self.set_speed_y()
+            else:
+
+                self.set_speed_y()
+
+        elif wall := pygame.sprite.spritecollideany(self, GamePole.invulwall_col):
+
+            if wall.get_coords()[1] < self.get_coords()[1] < wall.get_coords()[1] + InvulWall.WIDTH:
+
+                self.set_speed_x()
+
+            else:
+
+                self.set_speed_y()
 
         elif wall := pygame.sprite.spritecollideany(self, GamePole.wall_col):
 
-            self.set_speed_y()
+            if wall.get_coords()[1] < self.get_coords()[1] < wall.get_coords()[1] + ScoreWall.WIDTH:
+
+                self.set_speed_x()
+
+            else:
+
+                self.set_speed_y()
+
             wall.destroyed()
             game_pole.remove_wall(wall)
 
@@ -326,17 +364,18 @@ class Score:
 
     '''Класс для опсания игрового счёта'''
 
-    def __init__(self, coords: tuple[int, int]):
+    START_COORDS_SCORE = (20, 20)
+
+    def __init__(self) -> None:
 
         self.score = 0
-        self.coords = coords
         self.font = pygame.font.Font(None, 30)
         self.color_font = pygame.color.Color('white')
         self.text = 'SCORE: '
 
     def update_score(self) -> None:
 
-        x, y = self.coords
+        x, y = self.START_COORDS_SCORE
 
         string_rendered = self.font.render(self.text + str(self.score), 1, self.color_font)
         intro_rect = string_rendered.get_rect()
@@ -355,14 +394,19 @@ class GamePole(pygame.sprite.Sprite):
     '''Класс для описание игрового поля и процессов в нём'''
 
     IMAGE_FON = load_image('fon.png')
+
     horizontal_borders_col = pygame.sprite.Group()
     vertical_borders_col = pygame.sprite.Group()
     ball_col = pygame.sprite.Group()
     player_col = pygame.sprite.Group()
     invulwall_col = pygame.sprite.Group()
     wall_col = pygame.sprite.Group()
+
     LEVELS = ('yandex.txt', 'love.txt')
     INTRO_TEXT = ['LEVEL ']
+
+    START_POS_BALL = (450, 750)
+    START_POS_PLAYER = (400, 800)
 
     def __init__(self, frame: Frame, score: Score, player: Player, ball: Ball, *groups) -> None:
 
@@ -377,8 +421,6 @@ class GamePole(pygame.sprite.Sprite):
         self.color_font = pygame.color.Color('white')
         self.walls = []
 
-        self.start_pos_ball = (450, 800)
-        self.start_pos_player = (400, 900)
         super().__init__(groups)
 
     def update_frame(self) -> None:
@@ -458,7 +500,7 @@ class GamePole(pygame.sprite.Sprite):
 
         level = Level(choice(self.LEVELS))
         self.walls = level.parse_level()
-        self.ball.set_coords(self.start_pos_ball)
+        self.ball.set_coords(self.START_POS_BALL)
 
     def check_win(self) -> bool:
 
@@ -471,7 +513,7 @@ class GamePole(pygame.sprite.Sprite):
         '''Проверяет на выход мяча за нижную барьер'''
 
         if pygame.sprite.spritecollideany(self.ball, GamePole.horizontal_borders_col)\
-           and self.ball.get_coords()[1] > self.start_pos_ball[1]:
+           and self.ball.get_coords()[1] > self.START_POS_BALL[1]:
 
             return True
 
@@ -483,7 +525,7 @@ class Level:
     '''Класс для описания парсера уровня'''
 
     COLORS = ('R', 'B', 'G', 'Y')
-    SCORE = (50, 100, 200)
+    SCORES = (50, 100, 200)
 
     def __init__(self, filename: str) -> None:
 
@@ -525,7 +567,7 @@ class Level:
 
                     color = self.get_color(simbol)
                     wall = ScoreWall((coord_x, coord_y),
-                                     choice(self.SCORE),
+                                     choice(self.SCORES),
                                      color)
 
                 elif simbol == '#':
@@ -639,6 +681,8 @@ class EndWindow:
 
 def check_status_game() -> None:
 
+    '''Функция для проверки состояния игры'''
+
     global running
 
     if game_pole.check_win():
@@ -665,9 +709,9 @@ if __name__ == '__main__':
         running = True
 
         frame = Frame((50, 50), 800, 900)
-        player = Player((400, 800))
-        ball = Ball((450, 750))
-        score = Score((20, 20))
+        player = Player(GamePole.START_POS_PLAYER)
+        ball = Ball(GamePole.START_POS_BALL)
+        score = Score()
         game_pole = GamePole(frame, score, player, ball)
 
         x_coord_wall = 100
@@ -713,5 +757,4 @@ if __name__ == '__main__':
             check_status_game()
             game_pole.update_all()
 
-        pygame.quit()
-        exit()
+        terminate()
