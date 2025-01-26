@@ -109,6 +109,40 @@ class StartWindow:
             clock.tick(FPS)
 
 
+class AnimetedSpriteFog(pygame.sprite.Sprite):
+
+    '''Класс для описания анимации тумана'''
+
+    ANIMATED_IMAGE = load_image('smoke_128.png')
+    COLUMS = 5
+    ROWS = 5
+
+    def __init__(self, coords: tuple[int, int], *groups) -> None:
+
+        super().__init__(groups)
+        self.frames = []
+        self.coords = coords
+        self.cut_sheet(self.ANIMATED_IMAGE, self.COLUMS, self.ROWS)
+        self.cur_frame = 0
+        self.image = self.frames[self.cur_frame]
+
+    def cut_sheet(self, sheet: pygame.surface.Surface, columns: int, rows: int) -> None:
+
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
+                                sheet.get_height() // rows)
+        for j in range(rows):
+
+            for i in range(columns):
+
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+
+    def update_fog(self, index_frame: int) -> None:
+
+        screen.blit(self.frames[index_frame], self.coords)
+
+
 class Border(pygame.sprite.Sprite):
 
     '''Класс для описания стенок поля'''
@@ -137,7 +171,7 @@ class Frame(pygame.sprite.Sprite):
 
     '''Класс для описания рамки поля'''
 
-    def __init__(self, coords: tuple[int, int], height: int, width: int,  *groups):
+    def __init__(self, coords: tuple[int, int], height: int, width: int,  *groups) -> None:
 
         super().__init__(groups)
         self.coords = coords
@@ -163,7 +197,7 @@ class Frame(pygame.sprite.Sprite):
 
 class Player(pygame.sprite.Sprite):
 
-    '''Класс для описание модельки игрока'''
+    '''Класс для описания модельки игрока'''
 
     HEIGHT = 100
     WIDTH = 20
@@ -218,7 +252,7 @@ class Player(pygame.sprite.Sprite):
 
 class Wall(pygame.sprite.Sprite):
 
-    '''Общий класс для описание объектов находящихся на игровом поле'''
+    '''Общий класс для описания объектов находящихся на игровом поле'''
 
     HEIGHT = 40
     WIDTH = 20
@@ -250,7 +284,7 @@ class Wall(pygame.sprite.Sprite):
 
 class InvulWall(Wall):
 
-    '''Класс для описание неразрушаймых стен'''
+    '''Класс для описания неразрушаймых стен'''
 
     def __init__(self, coords: tuple[int, int], color: str | tuple[int, int, int], *groups) -> None:
 
@@ -260,7 +294,7 @@ class InvulWall(Wall):
 
 class ScoreWall(Wall):
 
-    '''Класс для описание стен, которые будут давать очки'''
+    '''Класс для описания стен, которые будут давать очки'''
 
     def __init__(self, coords: tuple[int, int], score: int, color: str | tuple[int, int, int], *groups) -> None:
 
@@ -276,7 +310,7 @@ class ScoreWall(Wall):
 
 class Ball(pygame.sprite.Sprite):
 
-    '''Класс для описание мяча'''
+    '''Класс для описания мяча'''
 
     SPEED = 5
     RADIUS = 8
@@ -328,7 +362,7 @@ class Ball(pygame.sprite.Sprite):
 
         elif pygame.sprite.spritecollideany(self, GamePole.player_col):
 
-            if GamePole.START_POS_PLAYER[1] < self.get_coords()[1] < GamePole.START_POS_PLAYER[1] + Player.WIDTH:
+            if GamePole.START_POS_PLAYER[1] <= self.get_coords()[1] <= GamePole.START_POS_PLAYER[1] + Player.WIDTH:
 
                 self.set_speed_x()
 
@@ -338,7 +372,7 @@ class Ball(pygame.sprite.Sprite):
 
         elif wall := pygame.sprite.spritecollideany(self, GamePole.invulwall_col):
 
-            if wall.get_coords()[1] < self.get_coords()[1] < wall.get_coords()[1] + InvulWall.WIDTH:
+            if wall.get_coords()[1] <= self.get_coords()[1] <= wall.get_coords()[1] + InvulWall.WIDTH:
 
                 self.set_speed_x()
 
@@ -348,7 +382,7 @@ class Ball(pygame.sprite.Sprite):
 
         elif wall := pygame.sprite.spritecollideany(self, GamePole.wall_col):
 
-            if wall.get_coords()[1] < self.get_coords()[1] < wall.get_coords()[1] + ScoreWall.WIDTH:
+            if wall.get_coords()[1] <= self.get_coords()[1] <= wall.get_coords()[1] + ScoreWall.WIDTH:
 
                 self.set_speed_x()
 
@@ -357,6 +391,9 @@ class Ball(pygame.sprite.Sprite):
                 self.set_speed_y()
 
             wall.destroyed()
+            x, y = wall.get_coords()
+            fog = AnimetedSpriteFog((x - 56, y - 56))
+            game_pole.append_fog(fog)
             game_pole.remove_wall(wall)
 
 
@@ -391,7 +428,7 @@ class Score:
 
 class GamePole(pygame.sprite.Sprite):
 
-    '''Класс для описание игрового поля и процессов в нём'''
+    '''Класс для описания игрового поля и процессов в нём'''
 
     IMAGE_FON = load_image('fon.png')
 
@@ -420,6 +457,7 @@ class GamePole(pygame.sprite.Sprite):
         self.count_level = 1
         self.color_font = pygame.color.Color('white')
         self.walls = []
+        self.fogs = {}
 
         super().__init__(groups)
 
@@ -445,6 +483,36 @@ class GamePole(pygame.sprite.Sprite):
 
             wall.update_wall()
 
+    def update_fogs(self) -> None:
+
+        for fog, index in self.fogs.items():
+
+            fog.update_fog(index)
+
+    def append_fog(self, fog: AnimetedSpriteFog) -> None:
+
+        if fog not in self.fogs:
+
+            self.fogs[fog] = 0
+
+    def remove_fog(self, fog: AnimetedSpriteFog) -> None:
+
+        if fog in tuple(self.fogs.values()):
+
+            del self.fogs[fog]
+
+    def update_dict_fogs(self) -> None:
+
+        for fog in self.fogs:
+
+            if self.fogs[fog] == 24:
+
+                self.remove_fog(fog)
+
+            else:
+
+                self.fogs[fog] += 1
+
     def remove_wall(self, wall: Wall | InvulWall) -> None:
 
         if wall in self.walls:
@@ -468,6 +536,8 @@ class GamePole(pygame.sprite.Sprite):
         self.move_ball()
         self.ball.update_ball()
         self.update_walls()
+        self.update_fogs()
+        self.update_dict_fogs()
 
         pygame.display.flip()
         clock.tick(FPS)
@@ -719,6 +789,8 @@ if __name__ == '__main__':
 
         game_pole.create_level()
         game_pole.update_all()
+
+        fog = AnimetedSpriteFog((200, 200))
 
         while running:
 
